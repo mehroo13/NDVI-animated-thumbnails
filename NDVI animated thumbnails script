@@ -1,0 +1,99 @@
+// Define the mask and display it on the map
+var mask = table.filter(ee.Filter.eq("country_na", "Pakistan"));
+Map.addLayer(mask);
+Map.centerObject(mask);
+
+// Create an NDVI collection from MODIS data
+var col = ee.ImageCollection("MODIS/061/MOD13Q1").select('NDVI')
+  .filterDate('2018-01-01', '2020-12-31')
+  .map(function(img) {
+    var doy = ee.Date(img.get('system:time_start')).getRelative('day', 'year');
+    return img.set('doy', doy);
+  });
+
+// Clip the images to the mask (Pakistan) and apply the color visualization
+var colClipped = col.map(function(img) {
+  return img.clip(mask).visualize({
+    min: 0.0,
+    max: 9000.0,
+    palette: [
+      'darkblue',  // Very low NDVI
+      'blue',      // Low NDVI
+      'cyan',      // Moderately low NDVI
+      'yellow',    // Moderate NDVI
+      'green',     // High NDVI
+      'darkgreen', // Very high NDVI
+      'brown',     // Decline in vegetation
+      'orange',    // Vegetation stress
+      'red'        // Very high vegetation stress
+    ]
+  });
+});
+
+// Set the region for the thumbnail
+var region = mask.geometry().bounds();
+
+// Generate an animated thumbnail for the NDVI time series
+var ndviGifParams = {
+  region: region,
+  dimensions: 600,
+  framesPerSecond: 5,
+  format: 'gif',
+  crs: 'EPSG:4326'
+};
+
+// Display the animation
+print(ui.Thumbnail(colClipped, ndviGifParams));
+
+// Create a legend
+var legend = ui.Panel({
+  style: {
+    position: 'bottom-left',
+    padding: '8px 15px'
+  }
+});
+
+// Create the title for the legend
+var legendTitle = ui.Label({
+  value: 'NDVI Legend',
+  style: {fontWeight: 'bold', fontSize: '18px', margin: '0 0 6px 0', padding: '0'}
+});
+legend.add(legendTitle);
+
+// Define colors and labels for the legend
+var palette = [
+  {color: 'darkblue', label: 'Very Low'},
+  {color: 'blue', label: 'Low'},
+  {color: 'cyan', label: 'Moderately Low'},
+  {color: 'yellow', label: 'Moderate'},
+  {color: 'green', label: 'High'},
+  {color: 'darkgreen', label: 'Very High'},
+  {color: 'brown', label: 'Decline in Vegetation'},
+  {color: 'orange', label: 'Vegetation Stress'},
+  {color: 'red', label: 'Very High Stress'}
+];
+
+// Add color and labels to the legend
+palette.forEach(function(entry) {
+  var colorBox = ui.Label({
+    style: {
+      backgroundColor: entry.color,
+      padding: '8px',
+      margin: '0 0 4px 0'
+    }
+  });
+  var description = ui.Label({
+    value: entry.label,
+    style: {margin: '0 0 4px 6px'}
+  });
+  
+  // Create a panel to hold the color and label
+  var legendRow = ui.Panel({
+    widgets: [colorBox, description],
+    layout: ui.Panel.Layout.Flow('horizontal')
+  });
+  legend.add(legendRow);
+});
+
+// Add the legend to the map
+Map.add(legend);
